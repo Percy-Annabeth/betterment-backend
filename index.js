@@ -5,20 +5,20 @@ import morgan from 'morgan';
 import dotenv from 'dotenv';
 
 // Import routes
-import leaderboardRoutes from './routes/leaderboard.js';
-import eventRoutes from './routes/events.js';
-import transactionRoutes from './routes/transactions.js';
-import groupRoutes from './routes/groups.js';
-import userRoutes from './routes/users.js';
+import leaderboardRoutes from './src/routes/leaderboard.js';
+import eventRoutes from './src/routes/events.js';
+import transactionRoutes from './src/routes/transactions.js';
+import groupRoutes from './src/routes/groups.js';
+import userRoutes from './src/routes/users.js';
 
 // Import middleware
-import { handleError } from './utils/errors.js';
+import { handleError } from './src/utils/errors.js';
 
 // Import cron jobs
-import { startCronJobs } from './jobs/cronJobs.js';
+import { startCronJobs } from './src/jobs/cronJobs.js';
 
 // Import logger
-import { logger } from './utils/logger.js';
+import { logger } from './src/utils/logger.js';
 
 // Load environment variables
 dotenv.config();
