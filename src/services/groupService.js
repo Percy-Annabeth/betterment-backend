@@ -1,4 +1,6 @@
-import { db, FieldValue, admin } from '../config/firebase.js';
+// import { db, FieldValue, admin } from '../config/firebase.js';
+import { db, FieldValue } from '../config/firebase.js';
+
 import { logger } from '../utils/logger.js';
 
 export class GroupService {
