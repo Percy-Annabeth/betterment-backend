@@ -1,3 +1,4 @@
+// backend/services/eventService.js
 // import { db, FieldValue, Timestamp } from '../config/firebase.js';
 // import { POINTS_CONFIG, TRANSACTION_TYPES } from '../config/constants.js';
 // import { TransactionService } from './transactionService.js';
@@ -12,23 +13,67 @@
 //     try {
 //       const eventRef = db.collection('events').doc();
       
+//       // Parse location if it comes as object
+//       let location = eventData.location;
+//       if (location && typeof location === 'object' && location.latitude !== undefined) {
+//         // Convert to GeoPoint if needed
+//         const admin = await import('firebase-admin');
+//         location = new admin.firestore.GeoPoint(
+//           location.latitude,
+//           location.longitude
+//         );
+//       }
+
+//       // Parse date if it comes as string
+//       let eventDate = eventData.date;
+//       if (typeof eventDate === 'string') {
+//         eventDate = Timestamp.fromDate(new Date(eventDate));
+//       } else if (eventDate instanceof Date) {
+//         eventDate = Timestamp.fromDate(eventDate);
+//       }
+
 //       const event = {
-//         ...eventData,
+//         title: eventData.title,
+//         description: eventData.description,
+//         category: eventData.category || eventData.priority || 'medium',
+//         priority: eventData.priority || eventData.category || 'medium',
+//         points: eventData.points || eventData.reward || 0,
+//         reward: eventData.reward || eventData.points || 0,
+//         date: eventDate || FieldValue.serverTimestamp(),
+//         location: location || null,
 //         createdBy: userId,
-//         status: 'open',
+//         status: eventData.status || 'active',
+//         tags: eventData.tags || [],
+//         imageUrl: eventData.imageUrl || null,
+//         timeReqToInvest: eventData.timeReqToInvest || 0,
+//         totalDonation: eventData.totalDonation || 0,
+//         donatedAmount: 0,
+//         participants: [],
+//         unsureParticipants: [],
+//         likes: [],
+//         dislikes: [],
+//         views: 0,
+//         verifiedParticipants: [],
+//         reportedBy: [],
+//         donation: [],
 //         createdAt: FieldValue.serverTimestamp(),
 //       };
 
 //       await eventRef.set(event);
 
 //       // Award points for posting event
-//       await this.transactionService.createTransaction({
-//         userId,
-//         amount: 0,
-//         points: POINTS_CONFIG.EVENT_POST,
-//         type: TRANSACTION_TYPES.EVENT_POSTED,
-//         relatedEventId: eventRef.id,
-//       });
+//       try {
+//         await this.transactionService.createTransaction({
+//           userId,
+//           amount: 0,
+//           points: POINTS_CONFIG.EVENT_POST || 10,
+//           type: TRANSACTION_TYPES.EVENT_POSTED || 'event_posted',
+//           relatedEventId: eventRef.id,
+//         });
+//       } catch (txError) {
+//         logger.warn(`Transaction creation failed for event ${eventRef.id}:`, txError);
+//         // Don't fail the event creation if transaction fails
+//       }
 
 //       logger.info(`Event created: ${eventRef.id} by user ${userId}`);
 
@@ -54,13 +99,17 @@
 //       if (eventData.status !== 'completed' && updateData.status === 'completed') {
 //         // Award points to solver
 //         if (updateData.solvedBy) {
-//           await this.transactionService.createTransaction({
-//             userId: updateData.solvedBy,
-//             amount: 0,
-//             points: eventData.points || POINTS_CONFIG.EVENT_SOLVE,
-//             type: TRANSACTION_TYPES.EVENT_SOLVED,
-//             relatedEventId: eventId,
-//           });
+//           try {
+//             await this.transactionService.createTransaction({
+//               userId: updateData.solvedBy,
+//               amount: 0,
+//               points: eventData.points || eventData.reward || POINTS_CONFIG.EVENT_SOLVE || 20,
+//               type: TRANSACTION_TYPES.EVENT_SOLVED || 'event_solved',
+//               relatedEventId: eventId,
+//             });
+//           } catch (txError) {
+//             logger.warn(`Transaction creation failed for event completion ${eventId}:`, txError);
+//           }
 
 //           logger.info(`Event ${eventId} solved by user ${updateData.solvedBy}`);
 //         }
@@ -149,8 +198,14 @@
 
 
 
+
+
+
+
+
 // backend/services/eventService.js
 import { db, FieldValue, Timestamp } from '../config/firebase.js';
+import admin from 'firebase-admin'; // ✅ CRITICAL: Import admin for GeoPoint
 import { POINTS_CONFIG, TRANSACTION_TYPES } from '../config/constants.js';
 import { TransactionService } from './transactionService.js';
 import { logger } from '../utils/logger.js';
@@ -164,23 +219,35 @@ export class EventService {
     try {
       const eventRef = db.collection('events').doc();
       
-      // Parse location if it comes as object
-      let location = eventData.location;
-      if (location && typeof location === 'object' && location.latitude !== undefined) {
-        // Convert to GeoPoint if needed
-        const admin = await import('firebase-admin');
-        location = new admin.firestore.GeoPoint(
-          location.latitude,
-          location.longitude
-        );
+      // ✅ FIX: Properly parse location to GeoPoint
+      let location = null;
+      if (eventData.location) {
+        if (eventData.location._latitude !== undefined || eventData.location.latitude !== undefined) {
+          // It's already a GeoPoint-like object or has coordinates
+          const lat = eventData.location._latitude || eventData.location.latitude;
+          const lng = eventData.location._longitude || eventData.location.longitude;
+          location = new admin.firestore.GeoPoint(
+            parseFloat(lat),
+            parseFloat(lng)
+          );
+        }
       }
 
-      // Parse date if it comes as string
-      let eventDate = eventData.date;
-      if (typeof eventDate === 'string') {
-        eventDate = Timestamp.fromDate(new Date(eventDate));
-      } else if (eventDate instanceof Date) {
-        eventDate = Timestamp.fromDate(eventDate);
+      // ✅ FIX: Properly parse date to Timestamp
+      let eventDate = null;
+      if (eventData.date) {
+        if (typeof eventData.date === 'string') {
+          eventDate = Timestamp.fromDate(new Date(eventData.date));
+        } else if (eventData.date instanceof Date) {
+          eventDate = Timestamp.fromDate(eventData.date);
+        } else if (eventData.date._seconds !== undefined) {
+          // Already a Timestamp
+          eventDate = eventData.date;
+        }
+      }
+
+      if (!eventDate) {
+        eventDate = Timestamp.now();
       }
 
       const event = {
@@ -190,12 +257,12 @@ export class EventService {
         priority: eventData.priority || eventData.category || 'medium',
         points: eventData.points || eventData.reward || 0,
         reward: eventData.reward || eventData.points || 0,
-        date: eventDate || FieldValue.serverTimestamp(),
-        location: location || null,
+        date: eventDate,
+        location: location,
         createdBy: userId,
         status: eventData.status || 'active',
         tags: eventData.tags || [],
-        imageUrl: eventData.imageUrl || null,
+        imageUrl: eventData.imageUrl || null, // ✅ Explicit null if empty
         timeReqToInvest: eventData.timeReqToInvest || 0,
         totalDonation: eventData.totalDonation || 0,
         donatedAmount: 0,
@@ -217,8 +284,8 @@ export class EventService {
         await this.transactionService.createTransaction({
           userId,
           amount: 0,
-          points: POINTS_CONFIG.EVENT_POST || 10,
-          type: TRANSACTION_TYPES.EVENT_POSTED || 'event_posted',
+          points: POINTS_CONFIG?.EVENT_POST || 10,
+          type: TRANSACTION_TYPES?.EVENT_POSTED || 'event_posted',
           relatedEventId: eventRef.id,
         });
       } catch (txError) {
@@ -254,8 +321,8 @@ export class EventService {
             await this.transactionService.createTransaction({
               userId: updateData.solvedBy,
               amount: 0,
-              points: eventData.points || eventData.reward || POINTS_CONFIG.EVENT_SOLVE || 20,
-              type: TRANSACTION_TYPES.EVENT_SOLVED || 'event_solved',
+              points: eventData.points || eventData.reward || POINTS_CONFIG?.EVENT_SOLVE || 20,
+              type: TRANSACTION_TYPES?.EVENT_SOLVED || 'event_solved',
               relatedEventId: eventId,
             });
           } catch (txError) {
