@@ -56,26 +56,6 @@ app.get('/health', (req, res) => {
 
 
 
-// TEMPORARY DEBUG ENDPOINT - Remove after testing
-app.get('/api/debug/firebase-config', (req, res) => {
-  res.json({
-    project_id: process.env.FIREBASE_PROJECT_ID,
-    client_email: process.env.FIREBASE_CLIENT_EMAIL,
-    has_private_key: !!process.env.FIREBASE_PRIVATE_KEY,
-    private_key_length: process.env.FIREBASE_PRIVATE_KEY?.length || 0,
-    private_key_starts_with: process.env.FIREBASE_PRIVATE_KEY?.substring(0, 27),
-    env_vars_present: {
-      FIREBASE_PROJECT_ID: !!process.env.FIREBASE_PROJECT_ID,
-      FIREBASE_PRIVATE_KEY_ID: !!process.env.FIREBASE_PRIVATE_KEY_ID,
-      FIREBASE_PRIVATE_KEY: !!process.env.FIREBASE_PRIVATE_KEY,
-      FIREBASE_CLIENT_EMAIL: !!process.env.FIREBASE_CLIENT_EMAIL,
-      FIREBASE_CLIENT_ID: !!process.env.FIREBASE_CLIENT_ID,
-    }
-  });
-});
-
-
-
 
 // API Routes
 app.use('/api/leaderboard', leaderboardRoutes);
