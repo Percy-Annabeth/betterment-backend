@@ -1,4 +1,5 @@
-import { auth } from '../config/firebase.js';
+// src/middleware/auth.js
+import admin from '../config/firebase.js';
 
 export const verifyToken = async (req, res, next) => {
   try {
@@ -12,7 +13,9 @@ export const verifyToken = async (req, res, next) => {
     }
 
     const token = authHeader.split('Bearer ')[1];
-    const decodedToken = await auth.verifyIdToken(token);
+    
+    // Use admin.auth() instead of just auth
+    const decodedToken = await admin.auth().verifyIdToken(token);
     
     req.user = {
       uid: decodedToken.uid,
@@ -27,4 +30,4 @@ export const verifyToken = async (req, res, next) => {
       error: 'Unauthorized: Invalid token',
     });
   }
-};
+};  

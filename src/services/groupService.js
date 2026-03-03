@@ -1,93 +1,45 @@
+
+
 // src/services/groupService.js
-import { db, FieldValue, Timestamp } from '../config/firebase.js';
-import { EventService } from './eventService.js';
+import { db, FieldValue } from '../config/firebase.js';
+import { logger } from '../utils/logger.js';
 
 export class GroupService {
-  constructor() {
-    this.collection = db.collection('groups');
-    this.eventService = new EventService();
-  }
-
-  /**
-   * Get all groups
-   */
-  async getAllGroups() {
+  async createGroup(groupData, userId) {
     try {
-      const snapshot = await this.collection.get();
-      return snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(),
-      }));
-    } catch (error) {
-      console.error('Error getting all groups:', error);
-      throw new Error('Failed to fetch groups');
-    }
-  }
-
-  /**
-   * Get group by ID
-   */
-  async getGroupById(groupId) {
-    try {
-      const doc = await this.collection.doc(groupId).get();
-
-      if (!doc.exists) {
-        throw new Error('Group not found');
-      }
-
-      return {
-        id: doc.id,
-        ...doc.data(),
-      };
-    } catch (error) {
-      console.error('Error getting group:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Create a new group
-   */
-  async createGroup(data, creatorId) {
-    try {
-      const groupData = {
-        name: data.name,
-        description: data.description,
-        groupTitle: data.groupTitle || '',
-        groupImage: data.groupImage || '',
-        tags: data.tags || [],
-        groupRules: data.groupRules || [],
-        members: [db.doc(`users/${creatorId}`)],
-        admins: [db.doc(`users/${creatorId}`)],
-        events: [],
-        postsCount: 0,
+      const groupRef = db.collection('groups').doc();
+      
+      const group = {
+        name: groupData.name,
+        description: groupData.description,
+        groupTitle: groupData.groupTitle || '',
+        groupImage: groupData.groupImage || null,
+        createdBy: db.doc(`users/${userId}`),
         createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
+        admins: [db.doc(`users/${userId}`)],
+        members: [db.doc(`users/${userId}`)],
+        providerMembers: [],
+        events: [],
+        services: [],
+        tags: groupData.tags || [],
+        postsCount: 0,
+        solvedCount: 0,
+        groupRules: groupData.groupRules || [],
       };
 
-      const docRef = await this.collection.add(groupData);
+      await groupRef.set(group);
+      logger.info(`Group created: ${groupRef.id} by user ${userId}`);
 
-      // Add group to user's joinedGroups
-      await db.collection('users').doc(creatorId).update({
-        joinedGroups: FieldValue.arrayUnion(docRef),
-      });
-
-      return {
-        id: docRef.id,
-        ...groupData,
-      };
+      return { id: groupRef.id, ...group };
     } catch (error) {
-      console.error('Error creating group:', error);
-      throw new Error('Failed to create group');
+      logger.error('Error creating group:', error);
+      throw error;
     }
   }
 
-  /**
-   * Update a group
-   */
-  async updateGroup(groupId, data, userId) {
+  async updateGroup(groupId, updateData, userId) {
     try {
-      const groupRef = this.collection.doc(groupId);
+      const groupRef = db.collection('groups').doc(groupId);
       const groupDoc = await groupRef.get();
 
       if (!groupDoc.exists) {
@@ -95,239 +47,259 @@ export class GroupService {
       }
 
       const groupData = groupDoc.data();
-
+      
       // Check if user is admin
       const isAdmin = groupData.admins.some(ref => ref.id === userId);
       if (!isAdmin) {
-        throw new Error('Only admins can update the group');
+        throw new Error('Unauthorized: Only admins can update group');
       }
 
-      const updateData = {
-        ...data,
+      const allowedUpdates = {
+        name: updateData.name,
+        description: updateData.description,
+        groupTitle: updateData.groupTitle,
+        groupImage: updateData.groupImage,
+        tags: updateData.tags,
+        groupRules: updateData.groupRules,
+      };
+
+      // Remove undefined values
+      Object.keys(allowedUpdates).forEach(key => 
+        allowedUpdates[key] === undefined && delete allowedUpdates[key]
+      );
+
+      await groupRef.update({
+        ...allowedUpdates,
         updatedAt: FieldValue.serverTimestamp(),
-      };
-
-      await groupRef.update(updateData);
-
-      return {
-        id: groupId,
-        ...groupData,
-        ...updateData,
-      };
-    } catch (error) {
-      console.error('Error updating group:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Delete a group
-   */
-  async deleteGroup(groupId, userId) {
-    try {
-      const groupRef = this.collection.doc(groupId);
-      const groupDoc = await groupRef.get();
-
-      if (!groupDoc.exists) {
-        throw new Error('Group not found');
-      }
-
-      const groupData = groupDoc.data();
-
-      // Check if user is admin
-      const isAdmin = groupData.admins.some(ref => ref.id === userId);
-      if (!isAdmin) {
-        throw new Error('Only admins can delete the group');
-      }
-
-      // Remove group from all members' joinedGroups
-      const batch = db.batch();
-      groupData.members.forEach(memberRef => {
-        batch.update(memberRef, {
-          joinedGroups: FieldValue.arrayRemove(groupRef),
-        });
       });
 
-      // Delete the group
-      batch.delete(groupRef);
-      await batch.commit();
+      logger.info(`Group ${groupId} updated by user ${userId}`);
 
-      return { success: true };
+      return { id: groupId, ...groupData, ...allowedUpdates };
     } catch (error) {
-      console.error('Error deleting group:', error);
+      logger.error('Error updating group:', error);
       throw error;
     }
   }
 
-  /**
-   * Join a group
-   */
   async joinGroup(groupId, userId) {
     try {
-      const groupRef = this.collection.doc(groupId);
+      const groupRef = db.collection('groups').doc(groupId);
       const userRef = db.doc(`users/${userId}`);
-
-      const groupDoc = await groupRef.get();
-      if (!groupDoc.exists) {
-        throw new Error('Group not found');
-      }
-
-      const groupData = groupDoc.data();
 
       // Check if already a member
-      const isMember = groupData.members.some(ref => ref.id === userId);
-      if (isMember) {
-        throw new Error('Already a member of this group');
+      const groupDoc = await groupRef.get();
+      if (!groupDoc.exists) {
+        throw new Error('Group not found');
       }
 
-      // Add user to group members
+      const groupData = groupDoc.data();
+      const isMember = groupData.members.some(ref => ref.id === userId);
+      
+      if (isMember) {
+        throw new Error('User is already a member');
+      }
+
       await groupRef.update({
         members: FieldValue.arrayUnion(userRef),
-        updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // Add group to user's joinedGroups
-      await db.collection('users').doc(userId).update({
-        joinedGroups: FieldValue.arrayUnion(groupRef),
-      });
+      logger.info(`User ${userId} joined group ${groupId}`);
 
-      return { success: true };
+      return { success: true, message: 'Successfully joined group' };
     } catch (error) {
-      console.error('Error joining group:', error);
+      logger.error('Error joining group:', error);
       throw error;
     }
   }
 
-  /**
-   * Leave a group
-   */
-  async leaveGroup(groupId, userId) {
+  // ✅ UPDATED: Enhanced leave group with transfer option
+  async leaveGroup(groupId, userId, options = {}) {
     try {
-      const groupRef = this.collection.doc(groupId);
+      const groupRef = db.collection('groups').doc(groupId);
       const userRef = db.doc(`users/${userId}`);
-
+      
       const groupDoc = await groupRef.get();
       if (!groupDoc.exists) {
         throw new Error('Group not found');
       }
 
       const groupData = groupDoc.data();
-
-      // Check if user is a member
-      const isMember = groupData.members.some(ref => ref.id === userId);
-      if (!isMember) {
-        throw new Error('Not a member of this group');
-      }
-
-      // Check if user is the only admin
+      const isCreator = groupData.createdBy.id === userId;
       const isAdmin = groupData.admins.some(ref => ref.id === userId);
-      if (isAdmin && groupData.admins.length === 1) {
-        throw new Error('Cannot leave: You are the only admin. Please appoint another admin first.');
+
+      // Option 1: Creator leaving and transferring ownership
+      if (isCreator && options.transferTo) {
+        const newCreatorRef = db.doc(`users/${options.transferTo}`);
+        
+        // Verify new creator is a member
+        const isNewCreatorMember = groupData.members.some(ref => ref.id === options.transferTo);
+        if (!isNewCreatorMember) {
+          throw new Error('New creator must be a group member');
+        }
+
+        // Transfer ownership
+        await groupRef.update({
+          createdBy: newCreatorRef,
+          admins: FieldValue.arrayUnion(newCreatorRef), // Make sure new creator is admin
+          members: FieldValue.arrayRemove(userRef), // Remove current user from members
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        // If old creator was admin, remove them
+        if (isAdmin) {
+          await groupRef.update({
+            admins: FieldValue.arrayRemove(userRef),
+          });
+        }
+
+        logger.info(`User ${userId} left group ${groupId} and transferred ownership to ${options.transferTo}`);
+
+        return { 
+          success: true, 
+          message: 'Successfully left group and transferred ownership',
+          transferred: true 
+        };
       }
 
-      // Remove user from group members and admins
+      // Option 2: Creator leaving without transferring (stays as creator but not member)
+      if (isCreator && !options.transferTo) {
+        await groupRef.update({
+          members: FieldValue.arrayRemove(userRef),
+          // Keep createdBy as is - creator remains but not a member
+          admins: FieldValue.arrayRemove(userRef), // Remove from admins
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+
+        logger.info(`Creator ${userId} left group ${groupId} without transferring ownership`);
+
+        return { 
+          success: true, 
+          message: 'Successfully left group. You remain as creator.',
+          creatorLeft: true 
+        };
+      }
+
+      // Option 3: Regular member or admin leaving
       await groupRef.update({
         members: FieldValue.arrayRemove(userRef),
-        admins: FieldValue.arrayRemove(userRef),
+        admins: FieldValue.arrayRemove(userRef), // Also remove from admins if applicable
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // Remove group from user's joinedGroups
-      await db.collection('users').doc(userId).update({
-        joinedGroups: FieldValue.arrayRemove(groupRef),
-      });
+      logger.info(`User ${userId} left group ${groupId}`);
 
-      return { success: true };
+      return { success: true, message: 'Successfully left group' };
     } catch (error) {
-      console.error('Error leaving group:', error);
+      logger.error('Error leaving group:', error);
       throw error;
     }
   }
 
-  /**
-   * ✅ NEW: Add an event to a group
-   */
-  async addEventToGroup(groupId, eventData, userId) {
+  // ✅ NEW: Check user's role in group
+  async getUserRoleInGroup(groupId, userId) {
     try {
-      const groupRef = this.collection.doc(groupId);
-      const groupDoc = await groupRef.get();
+      const groupDoc = await db.collection('groups').doc(groupId).get();
 
       if (!groupDoc.exists) {
         throw new Error('Group not found');
       }
 
       const groupData = groupDoc.data();
-
-      // Check if user is a member
+      const isCreator = groupData.createdBy.id === userId;
+      const isAdmin = groupData.admins.some(ref => ref.id === userId);
       const isMember = groupData.members.some(ref => ref.id === userId);
-      if (!isMember) {
-        throw new Error('Only group members can create events');
+
+      return {
+        isCreator,
+        isAdmin,
+        isMember,
+        canTransfer: isCreator && groupData.members.length > 1, // Can only transfer if there are other members
+      };
+    } catch (error) {
+      logger.error('Error checking user role:', error);
+      throw error;
+    }
+  }
+
+  async getGroupById(groupId) {
+    try {
+      const groupDoc = await db.collection('groups').doc(groupId).get();
+
+      if (!groupDoc.exists) {
+        throw new Error('Group not found');
       }
 
-      // Create the event using EventService
-      const event = await this.eventService.createEvent(eventData, userId);
+      return { id: groupDoc.id, ...groupDoc.data() };
+    } catch (error) {
+      logger.error('Error fetching group:', error);
+      throw error;
+    }
+  }
 
-      // Add event reference to group
-      const eventRef = db.doc(`events/${event.id}`);
+  async getAllGroups(filters = {}) {
+    try {
+      let query = db.collection('groups').orderBy('createdAt', 'desc');
+
+      if (filters.tag) {
+        query = query.where('tags', 'array-contains', filters.tag);
+      }
+
+      if (filters.limit) {
+        query = query.limit(filters.limit);
+      }
+
+      const snapshot = await query.get();
+      const groups = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+      // Sort by filters if specified
+      if (filters.sort === 'members') {
+        groups.sort((a, b) => (b.members?.length || 0) - (a.members?.length || 0));
+      } else if (filters.sort === 'events') {
+        groups.sort((a, b) => (b.events?.length || 0) - (a.events?.length || 0));
+      }
+
+      return groups;
+    } catch (error) {
+      logger.error('Error fetching groups:', error);
+      throw error;
+    }
+  }
+
+  async addEventToGroup(groupId, eventId, userId) {
+    try {
+      const groupRef = db.collection('groups').doc(groupId);
+      const eventRef = db.doc(`events/${eventId}`);
+      
+      const groupDoc = await groupRef.get();
+      if (!groupDoc.exists) {
+        throw new Error('Group not found');
+      }
+
+      const groupData = groupDoc.data();
+      const isMember = groupData.members.some(ref => ref.id === userId);
+      
+      if (!isMember) {
+        throw new Error('Only group members can add events');
+      }
+
       await groupRef.update({
         events: FieldValue.arrayUnion(eventRef),
-        updatedAt: FieldValue.serverTimestamp(),
+        postsCount: FieldValue.increment(1),
       });
 
-      // Update the event with group reference
-      await db.collection('events').doc(event.id).update({
-        groupId: groupRef,
-      });
+      logger.info(`Event ${eventId} added to group ${groupId} by user ${userId}`);
 
-      console.log(`✅ Event ${event.id} added to group ${groupId}`);
-
-      return event;
+      return { success: true };
     } catch (error) {
-      console.error('Error adding event to group:', error);
+      logger.error('Error adding event to group:', error);
       throw error;
     }
   }
 
-  /**
-   * ✅ NEW: Get all events in a group
-   */
-  async getGroupEvents(groupId) {
+  async uploadGroupImage(groupId, imageUrl, userId) {
     try {
-      const groupDoc = await this.collection.doc(groupId).get();
-
-      if (!groupDoc.exists) {
-        throw new Error('Group not found');
-      }
-
-      const groupData = groupDoc.data();
-      const eventRefs = groupData.events || [];
-
-      if (eventRefs.length === 0) {
-        return [];
-      }
-
-      // Fetch all events
-      const eventPromises = eventRefs.map(ref => ref.get());
-      const eventDocs = await Promise.all(eventPromises);
-
-      return eventDocs
-        .filter(doc => doc.exists)
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-    } catch (error) {
-      console.error('Error getting group events:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * ✅ NEW: Remove an event from a group
-   */
-  async removeEventFromGroup(groupId, eventId, userId) {
-    try {
-      const groupRef = this.collection.doc(groupId);
+      const groupRef = db.collection('groups').doc(groupId);
       const groupDoc = await groupRef.get();
 
       if (!groupDoc.exists) {
@@ -335,104 +307,22 @@ export class GroupService {
       }
 
       const groupData = groupDoc.data();
-
-      // Check if user is admin
       const isAdmin = groupData.admins.some(ref => ref.id === userId);
+      
       if (!isAdmin) {
-        throw new Error('Only admins can remove events from the group');
+        throw new Error('Unauthorized: Only admins can update group image');
       }
 
-      const eventRef = db.doc(`events/${eventId}`);
-
-      // Remove event from group
       await groupRef.update({
-        events: FieldValue.arrayRemove(eventRef),
+        groupImage: imageUrl,
         updatedAt: FieldValue.serverTimestamp(),
       });
 
-      // Optionally: Remove group reference from event
-      await db.collection('events').doc(eventId).update({
-        groupId: FieldValue.delete(),
-      });
+      logger.info(`Group ${groupId} image updated by user ${userId}`);
 
-      return { success: true };
+      return { success: true, imageUrl };
     } catch (error) {
-      console.error('Error removing event from group:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * ✅ NEW: Get all members of a group
-   */
-  async getGroupMembers(groupId) {
-    try {
-      const groupDoc = await this.collection.doc(groupId).get();
-
-      if (!groupDoc.exists) {
-        throw new Error('Group not found');
-      }
-
-      const groupData = groupDoc.data();
-      const memberRefs = groupData.members || [];
-
-      if (memberRefs.length === 0) {
-        return [];
-      }
-
-      // Fetch all members
-      const memberPromises = memberRefs.map(ref => ref.get());
-      const memberDocs = await Promise.all(memberPromises);
-
-      return memberDocs
-        .filter(doc => doc.exists)
-        .map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-    } catch (error) {
-      console.error('Error getting group members:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Make a user an admin
-   */
-  async makeAdmin(groupId, userId, requestingUserId) {
-    try {
-      const groupRef = this.collection.doc(groupId);
-      const groupDoc = await groupRef.get();
-
-      if (!groupDoc.exists) {
-        throw new Error('Group not found');
-      }
-
-      const groupData = groupDoc.data();
-
-      // Check if requesting user is admin
-      const isAdmin = groupData.admins.some(ref => ref.id === requestingUserId);
-      if (!isAdmin) {
-        throw new Error('Only admins can promote other members');
-      }
-
-      // Check if user is a member
-      const isMember = groupData.members.some(ref => ref.id === userId);
-      if (!isMember) {
-        throw new Error('User is not a member of this group');
-      }
-
-      const userRef = db.doc(`users/${userId}`);
-
-      // Add user to admins
-      await groupRef.update({
-        admins: FieldValue.arrayUnion(userRef),
-        updatedAt: FieldValue.serverTimestamp(),
-      });
-
-      return { success: true };
-    } catch (error) {
-      console.error('Error making user admin:', error);
+      logger.error('Error uploading group image:', error);
       throw error;
     }
   }

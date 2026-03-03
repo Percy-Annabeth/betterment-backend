@@ -1,3 +1,4 @@
+
 import express from 'express';
 import { GroupService } from '../services/groupService.js';
 import { verifyToken } from '../middleware/auth.js';
@@ -28,6 +29,23 @@ router.get('/:id', verifyToken, async (req, res, next) => {
     res.json({
       success: true,
       data: group,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ✅ NEW: GET /api/groups/:id/role (Check user's role in group)
+router.get('/:id/role', verifyToken, async (req, res, next) => {
+  try {
+    const role = await groupService.getUserRoleInGroup(
+      req.params.id,
+      req.user.uid
+    );
+
+    res.json({
+      success: true,
+      data: role,
     });
   } catch (error) {
     next(error);
@@ -113,28 +131,33 @@ router.post('/:id/join', verifyToken, async (req, res, next) => {
   }
 });
 
-// POST /api/groups/:id/leave
+// ✅ UPDATED: POST /api/groups/:id/leave (with optional transfer)
 router.post('/:id/leave', verifyToken, async (req, res, next) => {
   try {
-    await groupService.leaveGroup(req.params.id, req.user.uid);
+    const { transferTo } = req.body; // Optional: userId to transfer ownership to
+
+    const result = await groupService.leaveGroup(
+      req.params.id, 
+      req.user.uid,
+      { transferTo }
+    );
 
     res.json({
       success: true,
-      message: 'Successfully left group',
+      ...result,
     });
   } catch (error) {
     next(error);
   }
 });
 
-// ✅ NEW ROUTE: POST /api/groups/:id/events (Add event to group)
-router.post('/:id/events', verifyToken, validateEventData, async (req, res, next) => {
+// POST /api/groups/:id/events (Add event to group)
+router.post('/:id/events', verifyToken, async (req, res, next) => {
   try {
     const groupId = req.params.id;
     const userId = req.user.uid;
     const eventData = req.body;
 
-    // Add the event to the group
     const event = await groupService.addEventToGroup(groupId, eventData, userId);
 
     res.status(201).json({
@@ -148,7 +171,7 @@ router.post('/:id/events', verifyToken, validateEventData, async (req, res, next
   }
 });
 
-// ✅ NEW ROUTE: GET /api/groups/:id/events (Get all events in a group)
+// GET /api/groups/:id/events (Get all events in a group)
 router.get('/:id/events', verifyToken, async (req, res, next) => {
   try {
     const events = await groupService.getGroupEvents(req.params.id);
@@ -162,7 +185,7 @@ router.get('/:id/events', verifyToken, async (req, res, next) => {
   }
 });
 
-// ✅ NEW ROUTE: DELETE /api/groups/:groupId/events/:eventId (Remove event from group)
+// DELETE /api/groups/:groupId/events/:eventId (Remove event from group)
 router.delete('/:groupId/events/:eventId', verifyToken, async (req, res, next) => {
   try {
     await groupService.removeEventFromGroup(
@@ -180,7 +203,7 @@ router.delete('/:groupId/events/:eventId', verifyToken, async (req, res, next) =
   }
 });
 
-// ✅ NEW ROUTE: GET /api/groups/:id/members (Get all members in a group)
+// GET /api/groups/:id/members (Get all members in a group)
 router.get('/:id/members', verifyToken, async (req, res, next) => {
   try {
     const members = await groupService.getGroupMembers(req.params.id);
