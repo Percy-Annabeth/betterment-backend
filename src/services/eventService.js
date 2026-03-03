@@ -11,9 +11,7 @@ export class EventService {
     this.collection = db.collection('events');
   }
 
-  /**
-   * Get all events with optional filters
-   */
+
   async getAllEvents(filters = {}) {
     try {
       let query = this.collection;
@@ -67,81 +65,81 @@ export class EventService {
     }
   }
 
-  /**
-   * Create a new event
-   */
-  async createEvent(data, creatorId) {
-    try {
-      // Validate and normalize data
-      const eventData = {
-        title: data.title,
-        description: data.description,
-        category: data.category || data.priority || 'general',
-        priority: data.priority || data.category || 'medium',
-        status: data.status || 'active',
+  // /**
+  //  * Create a new event
+  //  */
+  // async createEvent(data, creatorId) {
+  //   try {
+  //     // Validate and normalize data
+  //     const eventData = {
+  //       title: data.title,
+  //       description: data.description,
+  //       category: data.category || data.priority || 'general',
+  //       priority: data.priority || data.category || 'medium',
+  //       status: data.status || 'active',
         
-        // Location
-        location: data.location || null,
+  //       // Location
+  //       location: data.location || null,
         
-        // Date and time
-        date: data.date ? Timestamp.fromDate(new Date(data.date)) : FieldValue.serverTimestamp(),
-        timeReqToInvest: data.timeReqToInvest || 60,
+  //       // Date and time
+  //       date: data.date ? Timestamp.fromDate(new Date(data.date)) : FieldValue.serverTimestamp(),
+  //       timeReqToInvest: data.timeReqToInvest || 60,
         
-        // Points and rewards
-        points: data.points || data.reward || 0,
-        reward: data.reward || data.points || 0,
+  //       // Points and rewards
+  //       points: data.points || data.reward || 0,
+  //       reward: data.reward || data.points || 0,
         
-        // Participants
-        participants: [],
-        verifiedParticipants: [],
+  //       // Participants
+  //       participants: [],
+  //       verifiedParticipants: [],
         
-        // Engagement
-        likes: [],
-        dislikes: [],
-        likeCount: 0,
-        dislikeCount: 0,
-        views: 0,
-        reportedBy: [],
+  //       // Engagement
+  //       likes: [],
+  //       dislikes: [],
+  //       likeCount: 0,
+  //       dislikeCount: 0,
+  //       views: 0,
+  //       reportedBy: [],
         
-        // Donations
-        donatedAmount: 0,
-        totalDonation: data.totalDonation || 0,
-        donations: [],
+  //       // Donations
+  //       donatedAmount: 0,
+  //       totalDonation: data.totalDonation || 0,
+  //       donations: [],
         
-        // Tags and metadata
-        tags: data.tags || [],
-        imageUrl: data.imageUrl || '',
+  //       // Tags and metadata
+  //       tags: data.tags || [],
+  //       imageUrl: data.imageUrl || '',
         
-        // Poll (if exists)
-        poll: data.poll || null,
+  //       // Poll (if exists)
+  //       poll: data.poll || null,
         
-        // References
-        createdBy: db.doc(`users/${creatorId}`),
-        groupId: data.groupId || null,
+  //       // References
+  //       createdBy: db.doc(`users/${creatorId}`),
+  //       groupId: data.groupId || null,
         
-        // Timestamps
-        createdAt: FieldValue.serverTimestamp(),
-        updatedAt: FieldValue.serverTimestamp(),
-      };
+  //       // Timestamps
+  //       createdAt: FieldValue.serverTimestamp(),
+  //       updatedAt: FieldValue.serverTimestamp(),
+  //     };
 
-      const docRef = await this.collection.add(eventData);
+  //     const docRef = await this.collection.add(eventData);
 
-      // Update user's pointsPosted
-      await db.collection('users').doc(creatorId).update({
-        pointsPosted: FieldValue.increment(1),
-      });
+  //     // Update user's pointsPosted
+  //     await db.collection('users').doc(creatorId).update({
+  //       pointsPosted: FieldValue.increment(1),
+  //     });
 
-      console.log(`✅ Event created: ${docRef.id}`);
+  //     console.log(`✅ Event created: ${docRef.id}`);
 
-      return {
-        id: docRef.id,
-        ...eventData,
-      };
-    } catch (error) {
-      console.error('Error creating event:', error);
-      throw new Error('Failed to create event');
-    }
-  }
+  //     return {
+  //       id: docRef.id,
+  //       ...eventData,
+  //     };
+  //   } catch (error) {
+  //     console.error('Error creating event:', error);
+  //     throw new Error('Failed to create event');
+  //   }
+  // }
 
   /**
    * Update an event
@@ -185,46 +183,46 @@ export class EventService {
     }
   }
 
-  /**
-   * Delete an event
-   */
-  async deleteEvent(eventId, userId) {
-    try {
-      const eventRef = this.collection.doc(eventId);
-      const eventDoc = await eventRef.get();
+  // /**
+  //  * Delete an event
+  //  */
+  // async deleteEvent(eventId, userId) {
+  //   try {
+  //     const eventRef = this.collection.doc(eventId);
+  //     const eventDoc = await eventRef.get();
 
-      if (!eventDoc.exists) {
-        throw new Error('Event not found');
-      }
+  //     if (!eventDoc.exists) {
+  //       throw new Error('Event not found');
+  //     }
 
-      const eventData = eventDoc.data();
+  //     const eventData = eventDoc.data();
 
-      // Check if user is the creator
-      if (eventData.createdBy.id !== userId) {
-        throw new Error('Only the creator can delete this event');
-      }
+  //     // Check if user is the creator
+  //     if (eventData.createdBy.id !== userId) {
+  //       throw new Error('Only the creator can delete this event');
+  //     }
 
-      // Remove event from group if it belongs to one
-      if (eventData.groupId) {
-        await eventData.groupId.update({
-          events: FieldValue.arrayRemove(eventRef),
-        });
-      }
+  //     // Remove event from group if it belongs to one
+  //     if (eventData.groupId) {
+  //       await eventData.groupId.update({
+  //         events: FieldValue.arrayRemove(eventRef),
+  //       });
+  //     }
 
-      // Delete the event
-      await eventRef.delete();
+  //     // Delete the event
+  //     await eventRef.delete();
 
-      // Update user's pointsPosted
-      await db.collection('users').doc(userId).update({
-        pointsPosted: FieldValue.increment(-1),
-      });
+  //     // Update user's pointsPosted
+  //     await db.collection('users').doc(userId).update({
+  //       pointsPosted: FieldValue.increment(-1),
+  //     });
 
-      return { success: true };
-    } catch (error) {
-      console.error('Error deleting event:', error);
-      throw error;
-    }
-  }
+  //     return { success: true };
+  //   } catch (error) {
+  //     console.error('Error deleting event:', error);
+  //     throw error;
+  //   }
+  // }
 
   /**
    * Join an event
@@ -380,5 +378,138 @@ export class EventService {
       console.error('Error incrementing views:', error);
       throw error;
     }
+  }
+}
+
+
+
+
+
+
+
+
+
+// src/services/eventService.js
+import { db, FieldValue, Timestamp } from '../config/firebase.js';
+
+export class EventService {
+  constructor() {
+    this.collection = db.collection('events');
+  }
+
+  async createEvent(data, creatorId) {
+    const creatorRef = db.doc(`users/${creatorId}`);
+    const groupIds = Array.isArray(data.groupId) ? data.groupId : [];
+
+    return await db.runTransaction(async (transaction) => {
+      const eventRef = this.collection.doc();
+
+      // Convert groupIds to references
+      const groupRefs = groupIds.map(id => db.doc(`groups/${id}`));
+
+      // Validate groups exist
+      for (const groupRef of groupRefs) {
+        const groupSnap = await transaction.get(groupRef);
+        if (!groupSnap.exists) {
+          throw new Error(`Group not found: ${groupRef.id}`);
+        }
+      }
+
+      const eventData = {
+        title: data.title,
+        description: data.description,
+
+        category: data.category || data.priority || 'general',
+        priority: data.priority || data.category || 'medium',
+
+        status: 'active',
+
+        location: data.location || null,
+
+        date: data.date
+          ? Timestamp.fromDate(new Date(data.date))
+          : FieldValue.serverTimestamp(),
+
+        timeReqToInvest: data.timeReqToInvest || 60,
+
+        points: data.points ?? data.reward ?? 0,
+        reward: data.reward ?? data.points ?? 0,
+
+        participants: [],
+        unsureParticipants: [],
+        verifiedParticipants: [],
+
+        likes: [],
+        dislikes: [],
+        likeCount: 0,
+        dislikeCount: 0,
+        views: 0,
+        reportedBy: [],
+
+        donatedAmount: 0,
+        totalDonation: data.totalDonation || 0,
+        donations: {}, // Map format (industry correct)
+
+        tags: data.tags || [],
+        imageUrl: data.imageUrl || '',
+
+        poll: null,
+
+        createdBy: creatorRef,
+        groupId: groupRefs,
+
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      };
+
+      transaction.set(eventRef, eventData);
+
+      // Add event to each group
+      for (const groupRef of groupRefs) {
+        transaction.update(groupRef, {
+          events: FieldValue.arrayUnion(eventRef),
+          postsCount: FieldValue.increment(1),
+        });
+      }
+
+      // Increment user counter
+      transaction.update(creatorRef, {
+        pointsPosted: FieldValue.increment(1),
+      });
+
+      return { id: eventRef.id, ...eventData };
+    });
+  }
+
+  async deleteEvent(eventId, userId) {
+    const eventRef = this.collection.doc(eventId);
+
+    return await db.runTransaction(async (transaction) => {
+      const eventSnap = await transaction.get(eventRef);
+      if (!eventSnap.exists) throw new Error('Event not found');
+
+      const eventData = eventSnap.data();
+
+      if (eventData.createdBy.id !== userId) {
+        throw new Error('Only creator can delete');
+      }
+
+      // Remove from groups
+      const groupRefs = eventData.groupId || [];
+      for (const groupRef of groupRefs) {
+        transaction.update(groupRef, {
+          events: FieldValue.arrayRemove(eventRef),
+          postsCount: FieldValue.increment(-1),
+        });
+      }
+
+      transaction.delete(eventRef);
+
+      transaction.update(db.doc(`users/${userId}`), {
+        pointsPosted: FieldValue.increment(-1),
+      });
+
+      return { success: true };
+    });
   }
 }

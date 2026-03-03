@@ -151,25 +151,25 @@ router.post('/:id/leave', verifyToken, async (req, res, next) => {
   }
 });
 
-// POST /api/groups/:id/events (Add event to group)
-router.post('/:id/events', verifyToken, async (req, res, next) => {
-  try {
-    const groupId = req.params.id;
-    const userId = req.user.uid;
-    const eventData = req.body;
+// // POST /api/groups/:id/events (Add event to group)
+// router.post('/:id/events', verifyToken, async (req, res, next) => {
+//   try {
+//     const groupId = req.params.id;
+//     const userId = req.user.uid;
+//     const eventData = req.body;
 
-    const event = await groupService.addEventToGroup(groupId, eventData, userId);
+//     const event = await groupService.addEventToGroup(groupId, eventData, userId);
 
-    res.status(201).json({
-      success: true,
-      message: 'Event added to group successfully',
-      data: event,
-    });
-  } catch (error) {
-    console.error('❌ Add event to group error:', error);
-    next(error);
-  }
-});
+//     res.status(201).json({
+//       success: true,
+//       message: 'Event added to group successfully',
+//       data: event,
+//     });
+//   } catch (error) {
+//     console.error('❌ Add event to group error:', error);
+//     next(error);
+//   }
+// });
 
 // GET /api/groups/:id/events (Get all events in a group)
 router.get('/:id/events', verifyToken, async (req, res, next) => {

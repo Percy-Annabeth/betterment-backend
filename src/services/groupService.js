@@ -266,36 +266,36 @@ export class GroupService {
     }
   }
 
-  async addEventToGroup(groupId, eventId, userId) {
-    try {
-      const groupRef = db.collection('groups').doc(groupId);
-      const eventRef = db.doc(`events/${eventId}`);
+  // async addEventToGroup(groupId, eventId, userId) {
+  //   try {
+  //     const groupRef = db.collection('groups').doc(groupId);
+  //     const eventRef = db.doc(`events/${eventId}`);
       
-      const groupDoc = await groupRef.get();
-      if (!groupDoc.exists) {
-        throw new Error('Group not found');
-      }
+  //     const groupDoc = await groupRef.get();
+  //     if (!groupDoc.exists) {
+  //       throw new Error('Group not found');
+  //     }
 
-      const groupData = groupDoc.data();
-      const isMember = groupData.members.some(ref => ref.id === userId);
+  //     const groupData = groupDoc.data();
+  //     const isMember = groupData.members.some(ref => ref.id === userId);
       
-      if (!isMember) {
-        throw new Error('Only group members can add events');
-      }
+  //     if (!isMember) {
+  //       throw new Error('Only group members can add events');
+  //     }
 
-      await groupRef.update({
-        events: FieldValue.arrayUnion(eventRef),
-        postsCount: FieldValue.increment(1),
-      });
+  //     await groupRef.update({
+  //       events: FieldValue.arrayUnion(eventRef),
+  //       postsCount: FieldValue.increment(1),
+  //     });
 
-      logger.info(`Event ${eventId} added to group ${groupId} by user ${userId}`);
+  //     logger.info(`Event ${eventId} added to group ${groupId} by user ${userId}`);
 
-      return { success: true };
-    } catch (error) {
-      logger.error('Error adding event to group:', error);
-      throw error;
-    }
-  }
+  //     return { success: true };
+  //   } catch (error) {
+  //     logger.error('Error adding event to group:', error);
+  //     throw error;
+  //   }
+  // }
 
   async uploadGroupImage(groupId, imageUrl, userId) {
     try {
