@@ -364,38 +364,7 @@ export class EventService {
     }
   }
 
-  /**
-   * Increment view count
-   */
-  async incrementViews(eventId) {
-    try {
-      await this.collection.doc(eventId).update({
-        views: FieldValue.increment(1),
-      });
 
-      return { success: true };
-    } catch (error) {
-      console.error('Error incrementing views:', error);
-      throw error;
-    }
-  }
-}
-
-
-
-
-
-
-
-
-
-// src/services/eventService.js
-import { db, FieldValue, Timestamp } from '../config/firebase.js';
-
-export class EventService {
-  constructor() {
-    this.collection = db.collection('events');
-  }
 
   async createEvent(data, creatorId) {
     const creatorRef = db.doc(`users/${creatorId}`);
@@ -512,4 +481,28 @@ export class EventService {
       return { success: true };
     });
   }
+
+  /**
+   * Increment view count
+   */
+  async incrementViews(eventId) {
+    try {
+      await this.collection.doc(eventId).update({
+        views: FieldValue.increment(1),
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error incrementing views:', error);
+      throw error;
+    }
+  }
 }
+
+
+
+
+
+
+
+
